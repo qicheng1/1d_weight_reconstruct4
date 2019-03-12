@@ -41,7 +41,7 @@ Eigen::MatrixXd get_weight(
     std::vector<double> x,
     std::vector<int> free,
     double x0,
-    double m);
+    int m);
 
 double L2_erro(std::vector<Element>& ele);
 

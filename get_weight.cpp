@@ -2,72 +2,117 @@
 #include "Eigen/Dense"
 #include <math.h>
 #include <iostream>
+#include <algorithm>
 Eigen::MatrixXd get_weight(
     std::vector<double> x,
     std::vector<int> free,
     double x0,
-    double m)
+    int m)
 {
-    Eigen::MatrixXd WW = Eigen::MatrixXd::Zero(free.size(),free.size());
+    Eigen::MatrixXd WW = Eigen::MatrixXd::Identity(free.size(),free.size());
     Eigen::MatrixXd CC = Eigen::MatrixXd::Zero(m+1,m+1);
     Eigen::VectorXd b = Eigen::VectorXd::Zero(m+1);
+    Eigen::MatrixXd temp = Eigen::MatrixXd::Zero(m+1,free.size());
+    std::vector<int> free_cache = free;
     std::vector<int> freevar,notfreevar;
+    int cindex;
+    std::vector<double> a(m+1);
+    switch(m)
+    {
+        case 2: 
+        a[0] = 0; a[1] = 10; a[2] = 1;
+        if (free.size()<9) return WW;
+        break;
+    }
+   // for(auto& sb:free)
+    //    std::cout<<sb<<std::endl;
     for(int i = 0; i<free.size(); i++)
         {
             if(x[free[i]]==x0)
              {
               freevar.push_back(i);
+              cindex = i;
               break;
              }
         }
-    int cindex = i;
     double h = fabs(x[free[1]]-x[free[0]]);
-    std::vector<double> a(m+1);
-    if (m%2==0) a[0]=0; else a[0]=pow(10,m-1);
-    for(int i = 1; i<m+1; i++)
-    {
-        a[i]=pow(10,m-i-1);
-    }
+    //std::cout<< a[0] <<" "<<a[1]<<" "<<a[2]<< std::endl;
     std::vector<double> c;
     for(int i = 0; i<free.size(); i++)
+        c.push_back(free[i]-free[cindex]);
+    //for(auto& sb:c)
+    //    std::cout<<sb<<std::endl;
+    for(int j = 0; j<m+1; j++)
     {
-        if(x[free[i]]==x0)
-         {
-             c.push_back(free[i]-free[cindex]);
-             continue;
-         }
-         c.push_back(free[i]-free[cindex]);
-        if(notfreevar.size()<m+1) notfreevar.push_back(i);
-        else freevar.push_back(i);
+        for(int i = 0; i<free.size(); i++)
+        {
+            for (int k = 0; k<m+1; k++)
+                temp(j,i) = temp(j,i)+a[k]*pow(c[i],k);
+            temp(j,i) = temp(j,i)-pow(c[i],m+1);
+            temp(j,i) = temp(j,i)*pow(h,m+1+j)*pow(c[i],j);
+            temp(j,i) = temp(j,i)*pow(10,7);
+        }
     }
-
+   //std::cout <<"This is temp"<<std::endl;
+   //std::cout<<temp<<std::endl; 
+   /* bool neg = false; bool pos = false;
+    
+    for(int i = 0; i<free.size(); i++)
+    {
+        if (i == cindex) continue;
+        if ((neg == false)&&(notfreevar.size()<m+1)&&(temp(0,i)<0))
+        {
+            notfreevar.push_back(i);
+            neg = true;
+        }
+        else
+        if ((pos == false)&&(notfreevar.size()<m+1)&&(temp(0,i)>0))
+        {
+            notfreevar.push_back(i);
+            pos = true;
+        }
+    }
+    //std::cout<<"hahaha"<<std::endl;
+    for(int i = 0; i<free.size(); i++)
+    {
+        if((find(notfreevar.begin(),notfreevar.end(),i) == notfreevar.end())&&(find(freevar.begin(),freevar.end(),i) == freevar.end()))
+        {
+            if(notfreevar.size()<m+1) notfreevar.push_back(i); else freevar.push_back(i);    
+        }
+    }
+   */
+   for(int i = free.size()-1; i>=0; i--)
+    {
+        if(x[free[i]]==x0) continue;
+        if(notfreevar.size()<m+1) notfreevar.push_back(i);
+            else freevar.push_back(i);
+    }
+    sort(notfreevar.begin(),notfreevar.end());
+     for(int i = 1; i<freevar.size(); i++)
+         WW(freevar[i],freevar[i]) = 1;
+         WW(freevar[3],freevar[3]) = 10.5;
+   // for(auto& sb:freevar)
+   //     std::cout<<sb<<" ";
+   // std::cout<<std::endl;
     for(int j = 0; j<m+1; j++)
     {
         double sum = 0;
         for(int i = 1; i<freevar.size(); i++)
         {
-            double temp;
-            for (int k = 0; k<m+1; k++)
-                temp = temp+a[k]*pow(c[freevar[i]],k);
-            temp = temp-pow(c[freevar[i]],m+1);
-            temp = temp*pow(h,m+1+j)*pow(c[freevar[i]],j);
-            sum = sum-1*temp;
+            sum = sum-WW(freevar[i],freevar[i])*temp(j,freevar[i]);
         }
         b(j) = sum;
+        //std::cout<<b(j)<<" ";
         for(int i = 0; i<notfreevar.size(); i++)
         {
-            double temp1;
-            for (int k = 0; k<m+1; k++)
-                temp1 = temp1+a[k]*pow(c[notfreevar[i]],k);
-            temp1 = temp1-pow(c[notfreevar[i]],m+1);
-            temp1 = temp1*pow(h,m+1+j)*pow(c[notfreevar[i]],j);
-            CC(j,i) = temp1;
+            CC(j,i) = temp(j,notfreevar[i]);
         }
-    } 
+    }
+   // std::cout<<CC<<std::endl; 
+    //std::cout<<std::endl;
+   // std::cout<<b<<std::endl;
     Eigen::VectorXd s = CC.fullPivLu().solve(b);
-    WW(freevar[0],freevar[0]) = 1000; //中心的权重大一些
-    for(int i = 1; i<freevar.size(); i++)
-        WW(freevar[i],freevar[i]) = 1; 
+    WW(freevar[0],freevar[0]) = 1000; //中心的权重大一些 
     for(int i = 0; i<notfreevar.size(); i++)
         WW(notfreevar[i],notfreevar[i]) = s[i];
     for(int i = 0; i<free.size(); i++)
